@@ -18,6 +18,13 @@ from .config import get_config
 load_translations()  # type: ignore
 
 
+# Bump this value when the plugin's extraction/segmentation logic changes in a
+# way that affects cached paragraph identities. On mismatch, we rebuild the
+# cache table from the newly extracted originals and try to reuse existing
+# translations where the `original` text still matches.
+CACHE_SCHEMA_VERSION = 2
+
+
 class Paragraph:
     def __init__(
             self, id, md5, raw, original, ignored=False, attributes=None,
@@ -138,6 +145,65 @@ class TranslationCache:
         self.cursor.execute(
             'CREATE TABLE IF NOT EXISTS info(key UNIQUE, value)')
 
+    def cache_schema_version(self) -> int | None:
+        value = self.get_info('cache_schema_version')
+        if value is None:
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def needs_rebuild(self) -> bool:
+        return self.cache_schema_version() != CACHE_SCHEMA_VERSION
+
+    def _rebuild(self, original_group) -> None:
+        existing: dict[str, tuple[str, str | None, str | None]] = {}
+        try:
+            resource = self.cursor.execute(
+                'SELECT original, translation, engine_name, target_lang '
+                'FROM cache '
+                'WHERE translation IS NOT NULL AND translation != ""')
+            for original, translation, engine_name, target_lang in resource.fetchall():
+                # Keep the first seen translation for identical originals.
+                if original not in existing:
+                    existing[original] = (translation, engine_name, target_lang)
+        except Exception:
+            # Best-effort migration; if anything goes wrong, fall back to
+            # rebuilding without reuse.
+            existing = {}
+
+        self.cursor.execute('DELETE FROM cache')
+
+        for unit in original_group:
+            # unit can be 5-tuple (merge mode) or 7-tuple (normal mode).
+            if len(unit) == 5:
+                _id, md5, raw, original, ignored = unit
+                attributes, page = None, None
+            elif len(unit) == 7:
+                _id, md5, raw, original, ignored, attributes, page = unit
+            else:
+                # Unknown tuple shape; keep compatibility with existing add().
+                self.add(*unit)
+                continue
+
+            translation, engine_name, target_lang = (None, None, None)
+            if original in existing:
+                translation, engine_name, target_lang = existing[original]
+
+            self.cursor.execute(
+                'INSERT INTO cache VALUES ('
+                '?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10'
+                ')',
+                (
+                    _id, md5, raw, original, ignored, attributes, page,
+                    translation, engine_name, target_lang,
+                ),
+            )
+
+        self.connection.commit()
+        self.set_info('cache_schema_version', str(CACHE_SCHEMA_VERSION))
+
     @classmethod
     def move(cls, dest):
         for dir_path in glob(os.path.join(cls.dir_path, '*')):
@@ -226,10 +292,15 @@ class TranslationCache:
         self.connection.commit()
 
     def save(self, original_group):
+        if self.needs_rebuild():
+            self._rebuild(original_group)
+            return
+
         if self.is_fresh():
             for original_unit in original_group:
                 self.add(*original_unit)
             self.connection.commit()
+            self.set_info('cache_schema_version', str(CACHE_SCHEMA_VERSION))
 
     def all(self):
         resource = self.cursor.execute('SELECT * FROM cache WHERE NOT ignored')

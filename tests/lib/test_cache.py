@@ -1,6 +1,8 @@
 import unittest
 
-from ...lib.cache import Paragraph
+from unittest.mock import patch
+
+from ...lib.cache import Paragraph, TranslationCache, CACHE_SCHEMA_VERSION
 
 
 class TestParagraph(unittest.TestCase):
@@ -75,3 +77,30 @@ class TestParagraph(unittest.TestCase):
         self.paragraph.translation = 'A\n\nB\nC'
         self.paragraph.do_aligment('\n\n')
         self.assertEqual('A\n\nB\n\nC', self.paragraph.translation)
+
+
+class TestTranslationCache(unittest.TestCase):
+    def test_rebuild_preserves_translation_by_original(self):
+        # Use an in-memory sqlite database for isolation.
+        with patch.object(TranslationCache, '_path', return_value=':memory:'):
+            cache = TranslationCache('unittest', persistence=True)
+            original_group = [
+                (0, 'md5-0', '<p>Hello</p>', 'Hello', False, None, 'p1')
+            ]
+
+            # Initial save will set the schema version.
+            cache.save(original_group)
+            self.assertEqual(CACHE_SCHEMA_VERSION, cache.cache_schema_version())
+
+            # Seed a cached translation.
+            cache.update(0, translation='Hola', engine_name='Mock', target_lang='es')
+
+            # Force a schema mismatch and ensure we rebuild without losing the
+            # existing translation when the original text still matches.
+            cache.set_info('cache_schema_version', '0')
+            self.assertTrue(cache.needs_rebuild())
+            cache.save(original_group)
+
+            paragraph = cache.paragraph(0)
+            self.assertEqual('Hello', paragraph.original)
+            self.assertEqual('Hola', paragraph.translation)

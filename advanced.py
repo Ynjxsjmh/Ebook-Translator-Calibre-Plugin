@@ -99,7 +99,7 @@ class PreparationWorker(QObject):
             + merge_length + encoding)
         cache = get_cache(cache_id)
 
-        if cache.is_fresh() or not cache.is_persistence():
+        if cache.is_fresh() or not cache.is_persistence() or cache.needs_rebuild():
             self.progress_detail.emit(
                 'Start processing the ebook: %s' % self.ebook.title)
             cache.set_info('title', self.ebook.title)

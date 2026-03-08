@@ -679,6 +679,38 @@ epub:type="pagebreak"/>b</code></p></body>
         self.assertIn(
             'et-pair-deadbeef', (translation.get('class') or '').split())
 
+        def test_add_translation_pair_markers_list_item_below(self):
+                xhtml = etree.XML(rb"""<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+    <head><title>Test Document</title></head>
+    <body>
+        <ul>
+            <li class="abc">one</li>
+        </ul>
+    </body>
+</html>""")
+                li = xhtml.find('.//x:li', namespaces=ns)
+                self.assertIsNotNone(li)
+
+                element = PageElement(li, 'p1')
+                element.position = 'below'
+                element.set_pair_id('deadbeef')
+                element.set_pair_marker_enabled(True)
+                element.add_translation('ONE')
+
+                # Translation is inserted inside the <li>, not under the whole list.
+                self.assertIn('et-src', (li.get('class') or '').split())
+                self.assertIn('et-pair-deadbeef', (li.get('class') or '').split())
+
+                span = li.find('./x:span', namespaces=ns)
+                self.assertIsNotNone(span)
+                self.assertEqual('ONE', span.text)
+                self.assertIn('et-tr', (span.get('class') or '').split())
+                self.assertIn('et-pair-deadbeef', (span.get('class') or '').split())
+
+                self.assertTrue(any(get_name(child) == 'br' for child in li))
+
     def test_add_translation_right(self):
         self.element.position = 'right'
         self.element.add_translation('test')
@@ -1020,6 +1052,9 @@ class TestExtraction(unittest.TestCase):
         div = '<div xmlns="http://www.w3.org/1999/xhtml"><div>a</div></div>'
         self.assertFalse(self.extraction.is_inline_only(etree.XML(div)))
 
+        ul = '<ul xmlns="http://www.w3.org/1999/xhtml"><li>a</li></ul>'
+        self.assertFalse(self.extraction.is_inline_only(etree.XML(ul)))
+
     def test_need_ignore(self):
         self.extraction.ignore_rules = ['table', 'p.a']
         self.extraction.load_ignore_patterns()
@@ -1072,6 +1107,24 @@ class TestExtraction(unittest.TestCase):
         self.assertTrue(elements[-2].ignored)
         self.assertEqual('p', elements[-1].get_name())
         self.assertFalse(elements[-1].ignored)
+
+    def test_extract_elements_list_items(self):
+        xhtml = etree.XML(b"""<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+<head><title>Document</title></head>
+<body>
+    <ul>
+        <li>One</li>
+        <li>Two</li>
+    </ul>
+</body>
+</html>""")
+        root = xhtml.find('.//x:body', namespaces=ns)
+        elements = self.extraction.extract_elements('p1', root, [])
+        self.assertEqual(2, len(elements))
+        self.assertEqual('li', elements[0].get_name())
+        self.assertEqual('li', elements[1].get_name())
 
     def test_extract_elements_root_without_elements(self):
         xhtml = etree.XML(b"""<?xml version="1.0" encoding="utf-8"?>
