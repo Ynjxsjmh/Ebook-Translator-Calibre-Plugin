@@ -24,6 +24,7 @@ class TestFunction(unittest.TestCase):
             'cache_path': None,
             'log_translation': True,
             'show_notification': True,
+            'pair_marker_enabled': False,
             'translation_position': None,
             'column_gap': {
                 '_type': 'percentage',

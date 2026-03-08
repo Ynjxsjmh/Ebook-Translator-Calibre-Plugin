@@ -666,6 +666,19 @@ epub:type="pagebreak"/>b</code></p></body>
         self.assertEqual('color:red', original.get('style'))
         self.assertIn('>test<', get_string(translation))
 
+    def test_add_translation_pair_markers_below(self):
+        self.element.position = 'below'
+        self.element.set_pair_id('deadbeef')
+        self.element.set_pair_marker_enabled(True)
+        self.element.add_translation('test')
+
+        original, translation = self.xhtml.findall('.//x:p', namespaces=ns)
+        self.assertIn('et-src', (original.get('class') or '').split())
+        self.assertIn('et-tr', (translation.get('class') or '').split())
+        self.assertIn('et-pair-deadbeef', (original.get('class') or '').split())
+        self.assertIn(
+            'et-pair-deadbeef', (translation.get('class') or '').split())
+
     def test_add_translation_right(self):
         self.element.position = 'right'
         self.element.add_translation('test')

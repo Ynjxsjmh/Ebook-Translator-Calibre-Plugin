@@ -44,6 +44,11 @@ class Element:
         self.remove_pattern = None
         self.reserve_pattern = None
 
+        # Used to add machine-readable markers for external post-processing
+        # (e.g., pairing original nodes with their translated counterparts).
+        self.pair_id: str | None = None
+        self.pair_marker_enabled: bool = False
+
     def _element_copy(self):
         return copy.deepcopy(self.element)
 
@@ -76,6 +81,12 @@ class Element:
 
     def set_reserve_pattern(self, pattern):
         self.reserve_pattern = pattern
+
+    def set_pair_id(self, pair_id: str | None):
+        self.pair_id = pair_id
+
+    def set_pair_marker_enabled(self, enabled: bool):
+        self.pair_marker_enabled = bool(enabled)
 
     def get_name(self) -> str | None:
         return None
@@ -266,6 +277,25 @@ class PageElement(Element):
             new_element.set('style', 'color:%s' % self.translation_color)
         return new_element
 
+    def _append_classes(self, element: etree._Element, *classes: str):
+        existing = element.get('class')
+        tokens = existing.split() if existing else []
+        for cls in classes:
+            if cls and cls not in tokens:
+                tokens.append(cls)
+        if tokens:
+            element.set('class', ' '.join(tokens))
+
+    def _mark_source(self, element: etree._Element):
+        if not self.pair_marker_enabled or self.pair_id is None:
+            return
+        self._append_classes(element, 'et-src', f'et-pair-{self.pair_id}')
+
+    def _mark_translation(self, element: etree._Element):
+        if not self.pair_marker_enabled or self.pair_id is None:
+            return
+        self._append_classes(element, 'et-tr', f'et-pair-{self.pair_id}')
+
     def add_translation(self, translation=None):
         # self.element.tail = None  # Make sure the element has no tail
         if self.original_color is not None:
@@ -306,10 +336,15 @@ class PageElement(Element):
         group_elements = ('li', 'th', 'td', 'caption')
         if element_name in group_elements:
             if self.position == 'only':
+                self._mark_translation(new_element)
                 self.element.addnext(new_element)
                 self._safe_remove(self.element)
+                return
             new_element = self._create_new_element(
                 'span', translation, excluding_attrs=['class'])
+
+            self._mark_source(self.element)
+            self._mark_translation(new_element)
             if self.position in ['left', 'above']:
                 if self.element.text is not None:
                     if self.position == 'above':
@@ -343,6 +378,8 @@ class PageElement(Element):
 
         # Add translation for left or right position.
         if self.position in ('left', 'right') and not is_text_element:
+            self._mark_source(self.element)
+            self._mark_translation(new_element)
             self.element.addnext(self._create_table(new_element))
             self._safe_remove(self.element)
             return
@@ -353,6 +390,7 @@ class PageElement(Element):
         translation_br_list = list(new_element.iterchildren(line_break_tag))
         if (len(original_br_list) == len(translation_br_list) > 0) and \
                 self.position in ('below', 'above'):
+            self._mark_source(self.element)
             self._add_translation_for_line_breaks(
                 new_element, original_br_list, translation_br_list)
             return
@@ -362,6 +400,7 @@ class PageElement(Element):
             get_name(parent_element) in group_elements
 
         if self.position == 'only':
+            self._mark_translation(new_element)
             self.element.addnext(new_element)
             self._safe_remove(self.element)
             return
@@ -369,6 +408,8 @@ class PageElement(Element):
         # new_element.tag = 'span'
         if self.position in ('left', 'above'):
             # Add translation next to the element.
+            self._mark_source(self.element)
+            self._mark_translation(new_element)
             self.element.addprevious(new_element)
             # # Add translation at the start of the element.
             # new_element.tail = self.element.text
@@ -381,6 +422,8 @@ class PageElement(Element):
                 new_element.tail = ' '
         else:
             # Add translation next to the element.
+            self._mark_source(self.element)
+            self._mark_translation(new_element)
             self.element.addnext(new_element)
             # # Added translation at the end of the element.
             # self.element.append(etree.SubElement(self.element, 'br'))
@@ -409,6 +452,7 @@ class PageElement(Element):
                 wrapper.text = text if index == 0 else tail
                 tail = translation_br.tail
                 if wrapper.text or len(list(wrapper)) > 0:
+                    self._mark_translation(wrapper)
                     new_br = etree.SubElement(self.element, 'br')
                     br.addprevious(new_br)
                     new_br.addnext(wrapper)
@@ -423,6 +467,8 @@ class PageElement(Element):
                     for sibling in translation_br.itersiblings():
                         wrapper.append(sibling)
                     wrapper.text = tail
+                    if wrapper.text or len(list(wrapper)) > 0:
+                        self._mark_translation(wrapper)
                     new_br = etree.SubElement(self.element, 'br')
                     self.element.append(new_br)
                     new_br.addnext(wrapper)
@@ -437,6 +483,7 @@ class PageElement(Element):
                     wrapper.insert(0, sibling)
                 wrapper.text = translation_br.tail
                 if wrapper.text or len(list(wrapper)) > 0:
+                    self._mark_translation(wrapper)
                     new_br = etree.SubElement(self.element, 'br')
                     new_br.tail = br.tail
                     br.tail = None
@@ -451,6 +498,8 @@ class PageElement(Element):
                     for sibling in translation_br.itersiblings(preceding=True):
                         wrapper.insert(0, sibling)
                     wrapper.text = new_element.text
+                    if wrapper.text or len(list(wrapper)) > 0:
+                        self._mark_translation(wrapper)
                     new_br = etree.SubElement(self.element, 'br')
                     new_br.tail = self.element.text
                     self.element.text = None
@@ -651,6 +700,8 @@ class ElementHandler:
         self.remove_pattern = None
         self.reserve_pattern = None
 
+        self.pair_marker_enabled = False
+
         self.elements = {}
         self.originals = []
 
@@ -688,6 +739,9 @@ class ElementHandler:
             'var', 'canvas', 'svg', 'script', 'style', 'math')
         self.reserve_pattern = create_xpath(default_rules + tuple(rules))
 
+    def set_pair_marker_enabled(self, enabled: bool):
+        self.pair_marker_enabled = bool(enabled)
+
     def prepare_original(self, elements):
         count = 0
         for oid, element in enumerate(elements):
@@ -708,6 +762,8 @@ class ElementHandler:
             if content.strip() == '':
                 element.set_ignored(True)
             md5 = uid('%s%s' % (oid, content))
+            element.set_pair_id(md5)
+            element.set_pair_marker_enabled(self.pair_marker_enabled)
             attrs = element.get_attributes()
             if not element.ignored:
                 self.elements[count] = element
@@ -759,6 +815,9 @@ class ElementHandlerMerge(ElementHandler):
             element.set_reserve_pattern(self.reserve_pattern)
             code = element.get_raw()
             content = element.get_content()
+            md5 = uid('%s%s' % (eid, content))
+            element.set_pair_id(md5)
+            element.set_pair_marker_enabled(self.pair_marker_enabled)
             content += self.separator
             if len(txt + content) < self.merge_length:
                 raw += code + self.separator
@@ -895,6 +954,7 @@ def get_element_handler(placeholder, separator, direction):
         handler.set_column_gap((gap_type, column_gap.get(gap_type)))
     handler.set_original_color(config.get('original_color'))
     handler.set_translation_color(config.get('translation_color'))
+    handler.set_pair_marker_enabled(config.get('pair_marker_enabled', False))
     handler.load_remove_rules(
         config.get('ignore_rules', config.get('element_rules', [])))
     handler.load_reserve_rules(config.get('reserve_rules', []))

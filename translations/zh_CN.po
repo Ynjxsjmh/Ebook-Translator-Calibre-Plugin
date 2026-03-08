@@ -768,6 +768,9 @@ msgstr "空格数"
 msgid "Translation Position"
 msgstr "译文位置"
 
+msgid "Mark original/translation pairs (for external processing)"
+msgstr "标记原文/译文配对"
+
 msgid "Original Text Color"
 msgstr "原文颜色"
 

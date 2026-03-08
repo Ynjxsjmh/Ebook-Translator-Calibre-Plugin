@@ -25,6 +25,9 @@ defaults: dict[str, Any] = {
     'cache_path': None,
     'log_translation': True,
     'show_notification': True,
+    # Add machine-readable markers (e.g., CSS classes) to link each original
+    # element with its translated counterpart for external post-processing.
+    'pair_marker_enabled': False,
     'translation_position': None,
     'column_gap': {
         '_type': 'percentage',

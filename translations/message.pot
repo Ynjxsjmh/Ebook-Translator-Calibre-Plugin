@@ -1001,6 +1001,10 @@ msgstr ""
 msgid "Translation Position"
 msgstr ""
 
+#: setting.py:915
+msgid "Mark original/translation pairs"
+msgstr ""
+
 #: setting.py:927
 msgid "Original Text Color"
 msgstr ""

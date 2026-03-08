@@ -757,6 +757,9 @@ msgstr ""
 msgid "Translation Position"
 msgstr "譯文位置"
 
+msgid "Mark original/translation pairs (for external processing)"
+msgstr "標記原文/譯文配對"
+
 msgid "Original Text Color"
 msgstr ""
 

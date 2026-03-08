@@ -911,6 +911,14 @@ class TranslationSetting(QDialog):
 
         layout.addWidget(position_group)
 
+        pair_marker_enabled = QCheckBox(
+            _('Mark original/translation pairs'))
+        pair_marker_enabled.setChecked(
+            self.config.get('pair_marker_enabled', False))
+        pair_marker_enabled.toggled.connect(
+            lambda checked: self.config.update(pair_marker_enabled=checked))
+        layout.addWidget(pair_marker_enabled)
+
         position_map = dict(enumerate(
             ['below', 'above', 'right', 'left', 'only']))
         position_rmap = dict((v, k) for k, v in position_map.items())
