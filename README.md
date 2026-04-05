@@ -24,6 +24,7 @@ __Plugin Homepage__: [https://translator.bookfere.com](https://translator.bookfe
 * Support to translate more than one ebooks. The translation process of each book is carried out simultaneously without affecting one another
 * Support caching translated content, with no need to re-translate after request failure or network interruption
 * Provide a large number of customization settings, such as saving translated ebooks to Calibre library or designated location
+* Add tag between original and translation paragraph for HTML generator plugin.
 
 ---
 

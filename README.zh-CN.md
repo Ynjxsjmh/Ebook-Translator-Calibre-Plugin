@@ -23,6 +23,7 @@ __插件主页__：[https://translator.bookfere.com](https://translator.bookfere
 * 支持批量翻译电子书，每本书的翻译过程同时进行互不影响
 * 支持缓存翻译内容，在请求失败或网络中断后无需重新翻译
 * 提供大量自定义设置，如将翻译的电子书存到 Calibre 书库或指定位置
+* 支持标记原文和译文段落，为 HTML generator 插件提供支持
 
 ---
 
